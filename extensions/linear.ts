@@ -188,7 +188,7 @@ async function ensurePiAgentStates(): Promise<void> {
     const statesData = await graphqlRequest<{
       workflowStates: { nodes: LinearWorkflowState[] };
     }>(`
-      query($teamId: String!) {
+      query($teamId: ID!) {
         workflowStates(filter: { team: { id: { eq: $teamId } } }) {
           nodes { id name type }
         }
