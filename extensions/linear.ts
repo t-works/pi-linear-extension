@@ -337,8 +337,8 @@ export default function linearExtension(pi: ExtensionAPI) {
           }
         `, {
           filter: projectId
-            ? { project: { id: { eq: projectId } }, state: { in: ["started", "planned"] } }
-            : { state: { in: ["started", "planned"] } },
+            ? { project: { id: { eq: projectId } } }
+            : {},
         });
 
         const milestones = data.projectMilestones.nodes.map((m) => {
@@ -507,45 +507,23 @@ export default function linearExtension(pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
       try {
         const issueId = params.issueId.trim();
-        let issue: LinearIssue | undefined;
 
-        // Try identifier lookup first (e.g. "LIN-42")
-        if (issueId.includes("-")) {
-          const data = await graphqlRequest<{
-            issues: { nodes: LinearIssue[] };
-          }>(`
-            query($identifier: String!) {
-              issues(filter: { identifier: { eq: $identifier } }, first: 1) {
-                nodes {
-                  ${ISSUE_FIELDS}
-                  children { nodes { id identifier title state { name type } } }
-                  comments(first: 20) {
-                    nodes { id body user { name } createdAt }
-                  }
-                }
+        // Linear's issue(id:) accepts both identifiers ("LIN-42") and UUIDs
+        const data = await graphqlRequest<{
+          issue: LinearIssue;
+        }>(`
+          query($id: String!) {
+            issue(id: $id) {
+              ${ISSUE_FIELDS}
+              children { nodes { id identifier title state { name type } } }
+              comments(first: 20) {
+                nodes { id body user { name } createdAt }
               }
             }
-          `, { identifier: issueId });
-          issue = data.issues.nodes[0];
-        }
+          }
+        `, { id: issueId });
 
-        // Fallback: UUID lookup
-        if (!issue) {
-          const data = await graphqlRequest<{
-            issue: LinearIssue;
-          }>(`
-            query($id: String!) {
-              issue(id: $id) {
-                ${ISSUE_FIELDS}
-                children { nodes { id identifier title state { name type } } }
-                comments(first: 20) {
-                  nodes { id body user { name } createdAt }
-                }
-              }
-            }
-          `, { id: issueId });
-          issue = data.issue;
-        }
+        const issue = data.issue;
 
         if (!issue) {
           return {
@@ -947,8 +925,8 @@ export default function linearExtension(pi: ExtensionAPI) {
           }
         `, {
           filter: cachedProjectId
-            ? { project: { id: { eq: cachedProjectId } }, state: { in: ["started", "planned"] } }
-            : { state: { in: ["started", "planned"] } },
+            ? { project: { id: { eq: cachedProjectId } } }
+            : {},
         });
 
         const milestones = milestonesData.projectMilestones.nodes.map((m) => {
