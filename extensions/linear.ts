@@ -171,21 +171,30 @@ const piAgentStateCache = new Map<string, string>();
 async function ensurePiAgentStates(): Promise<void> {
   if (piAgentStateCache.size > 0) return; // already initialized
 
-  const data = await graphqlRequest<{
-    teams: { nodes: LinearTeam[] };
+  // Fetch all teams first, then query workflow states per team
+  const teamsData = await graphqlRequest<{
+    teams: { nodes: Array<{ id: string; name: string; key: string }> };
   }>(`
     query {
       teams(first: 50) {
-        nodes {
-          id name key
-          workflowStates { nodes { id name type } }
-        }
+        nodes { id name key }
       }
     }
   `);
 
-  for (const team of data.teams.nodes) {
-    const states = team.workflowStates?.nodes ?? [];
+  for (const team of teamsData.teams.nodes) {
+    // Query workflow states for this team
+    const statesData = await graphqlRequest<{
+      workflowStates: { nodes: LinearWorkflowState[] };
+    }>(`
+      query($teamId: String!) {
+        workflowStates(filter: { team: { id: { eq: $teamId } } }) {
+          nodes { id name type }
+        }
+      }
+    `, { teamId: team.id });
+
+    const states = statesData.workflowStates.nodes;
     const existing = states.find(
       (s) => s.name === "PI Agent" && s.type === "completed",
     );
