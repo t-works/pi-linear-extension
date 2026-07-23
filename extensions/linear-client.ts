@@ -36,9 +36,19 @@ export interface GraphQLResponse<T> {
 export async function graphqlRequest<T>(
   query: string,
   variables?: Record<string, unknown>,
+  externalSignal?: AbortSignal,
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  // Link external signal to our controller so either can abort
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timeoutId);
+      throw new Error("Linear API request aborted");
+    }
+    externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
 
   try {
     const response = await fetch(LINEAR_API, {

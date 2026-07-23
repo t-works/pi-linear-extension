@@ -169,7 +169,7 @@ function formatIssueDetail(issue: LinearIssue): string {
 /** teamId → completed state ID */
 const piAgentStateCache = new Map<string, string>();
 
-async function ensurePiAgentStates(): Promise<void> {
+async function ensurePiAgentStates(signal?: AbortSignal): Promise<void> {
   if (piAgentStateCache.size > 0) return; // already initialized
 
   // Fetch all teams first, then query workflow states per team
@@ -181,7 +181,7 @@ async function ensurePiAgentStates(): Promise<void> {
         nodes { id name key }
       }
     }
-  `);
+  `, undefined, signal);
 
   for (const team of teamsData.teams.nodes) {
     // Query workflow states for this team
@@ -193,7 +193,7 @@ async function ensurePiAgentStates(): Promise<void> {
           nodes { id name type }
         }
       }
-    `, { teamId: team.id });
+    `, { teamId: team.id }, signal);
 
     const states = statesData.workflowStates.nodes;
     const existing = states.find(
@@ -220,7 +220,7 @@ async function ensurePiAgentStates(): Promise<void> {
             name: "PI Agent",
             color: "#5E6AD2",
           },
-        });
+        }, signal);
         if (result.workflowStateCreate.success) {
           piAgentStateCache.set(team.id, result.workflowStateCreate.workflowState.id);
         }
@@ -231,8 +231,8 @@ async function ensurePiAgentStates(): Promise<void> {
   }
 }
 
-async function getCompletedStateId(teamId: string): Promise<string | undefined> {
-  await ensurePiAgentStates();
+async function getCompletedStateId(teamId: string, signal?: AbortSignal): Promise<string | undefined> {
+  await ensurePiAgentStates(signal);
   return piAgentStateCache.get(teamId);
 }
 
@@ -249,6 +249,11 @@ export default function linearExtension(pi: ExtensionAPI) {
     ensurePiAgentStates().catch(() => {
       // Non-fatal — states will be created on first update_issue call
     });
+  });
+
+  pi.on("session_shutdown", () => {
+    cachedProjectId = undefined;
+    piAgentStateCache.clear();
   });
 
   // ── Tool: linear_list_projects ──────────────────────────────────────────
@@ -270,7 +275,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               nodes { id name description }
             }
           }
-        `);
+        `, undefined, signal);
 
         if (!data.projects.nodes.length) {
           return {
@@ -349,7 +354,7 @@ export default function linearExtension(pi: ExtensionAPI) {
           filter: projectId
             ? { project: { id: { eq: projectId } } }
             : {},
-        });
+        }, signal);
 
         const milestones = data.projectMilestones.nodes.map((m) => {
           const byState: Record<string, number> = {};
@@ -413,7 +418,6 @@ export default function linearExtension(pi: ExtensionAPI) {
     promptSnippet: "List Linear issues (defaults to unstarted), optionally filtered by milestoneId, teamId, assigneeId, status, search, limit",
     promptGuidelines: [
       "Use linear_list_issues to find unstarted issues to work on. Default filter returns only Todo/Backlog items.",
-      "After completing work on an issue, call linear_update_issue to mark it as Done, then linear_add_comment to post a summary.",
     ],
     parameters: Type.Object({
       milestoneId: Type.Optional(Type.String({ description: "Filter by milestone ID" })),
@@ -471,7 +475,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               }
             }
           }
-        `, { filter: queryFilter, first });
+        `, { filter: queryFilter, first }, signal);
 
         const issues = data.issues.nodes;
 
@@ -531,7 +535,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               }
             }
           }
-        `, { id: issueId });
+        `, { id: issueId }, signal);
 
         const issue = data.issue;
 
@@ -602,7 +606,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               }
             }
           }
-        `, { filter, first });
+        `, { filter, first }, signal);
 
         const issues = data.viewer.assignedIssues.nodes;
 
@@ -665,7 +669,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               }
             }
           }
-        `, { term: params.term, first });
+        `, { term: params.term, first }, signal);
 
         const issues = data.searchIssues.nodes;
 
@@ -723,7 +727,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               comment { id url body }
             }
           }
-        `, { input: { issueId: params.issueId, body: params.body } });
+        `, { input: { issueId: params.issueId, body: params.body } }, signal);
 
         if (!data.commentCreate.success) {
           return {
@@ -785,10 +789,10 @@ export default function linearExtension(pi: ExtensionAPI) {
                 team { id }
               }
             }
-          `, { id: params.issueId });
+          `, { id: params.issueId }, signal);
 
           const teamId = issueData.issue.team.id;
-          stateId = await getCompletedStateId(teamId);
+          stateId = await getCompletedStateId(teamId, signal);
 
           if (!stateId) {
             return {
@@ -817,7 +821,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               issue { id identifier title state { name } }
             }
           }
-        `, { id: params.issueId, input });
+        `, { id: params.issueId, input }, signal);
 
         if (!data.issueUpdate.success) {
           return {
