@@ -5,7 +5,7 @@
   "keywords": ["pi-package", "linear", "issue-tracker"],
   "pi": {
     "extensions": ["./extensions/linear.ts"],
-    "skills": ["./SKILL.md"]
+    "skills": ["./SKILL.md", "./skills"]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
