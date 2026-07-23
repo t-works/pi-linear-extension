@@ -50,7 +50,7 @@ interface LinearMilestone {
   id: string;
   name: string;
   description?: string;
-  progressState: string;
+  progress: number;
   targetDate?: string;
   issueCounts?: MilestoneIssueCounts;
 }
@@ -315,7 +315,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               id: string;
               name: string;
               description?: string;
-              progressState: string;
+              progress: number;
               targetDate?: string;
               issues: { nodes: Array<{ id: string; state: { name: string; type: string } }> };
             }>;
@@ -328,7 +328,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               first: 50
             ) {
               nodes {
-                id name description progressState targetDate
+                id name description progress targetDate
                 issues(filter: { state: { type: { nin: ["completed", "canceled"] } } }) {
                   nodes { id state { name type } }
                 }
@@ -351,7 +351,7 @@ export default function linearExtension(pi: ExtensionAPI) {
             id: m.id,
             name: m.name,
             description: m.description,
-            progressState: m.progressState,
+            progress: m.progress,
             targetDate: m.targetDate,
             issueCounts: {
               total: m.issues.nodes.length,
@@ -925,7 +925,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               id: string;
               name: string;
               description?: string;
-              progressState: string;
+              progress: number;
               targetDate?: string;
               issues: { nodes: Array<{ id: string; state: { name: string; type: string } }> };
             }>;
@@ -938,7 +938,7 @@ export default function linearExtension(pi: ExtensionAPI) {
               first: 50
             ) {
               nodes {
-                id name description progressState targetDate
+                id name description progress targetDate
                 issues(filter: { state: { type: { nin: ["completed", "canceled"] } } }) {
                   nodes { id state { name type } }
                 }
