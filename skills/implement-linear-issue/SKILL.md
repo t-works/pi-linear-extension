@@ -1,6 +1,7 @@
 ---
 name: implement-linear-issue
-description: Full workflow for implementing a Linear issue end-to-end. Use when the user asks to "work on an issue", "implement a Linear ticket", "fix LIN-...", or "do the Linear flow". Trigger terms: implement issue, work on ticket, fix linear issue, linear workflow.
+description: >
+  Full workflow for implementing a Linear issue end-to-end. Use when the user asks to "work on an issue", "implement a Linear ticket", "fix LIN-...", or "do the Linear flow". Trigger terms: implement issue, work on ticket, fix linear issue, linear workflow.
 ---
 
 # Implement Linear Issue — Full Workflow

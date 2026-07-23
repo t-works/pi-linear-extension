@@ -1,6 +1,7 @@
 ---
 name: linear-integration
-description: Linear issue tracker integration. Pull issues, work on them, mark as Done, and post session summaries. Use when working with Linear issues, tickets, or LIN- identifiers. Trigger terms: Linear, issue, ticket, LIN-, milestone.
+description: >
+  Linear issue tracker integration. Pull issues, work on them, mark as Done, and post session summaries. Use when working with Linear issues, tickets, or LIN- identifiers. Trigger terms: Linear, issue, ticket, LIN-, milestone.
 ---
 
 # Linear Integration Skill
