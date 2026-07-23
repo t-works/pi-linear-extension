@@ -890,21 +890,19 @@ export default function linearExtension(pi: ExtensionAPI) {
           return;
         }
 
-        const projectChoices = [
-          ...projects.map((p) => ({
-            label: sanitizeText(p.name),
-            value: p.id,
-          })),
-          { label: "[All projects]", value: "__all__" },
+        const projectLabels = [
+          ...projects.map((p) => sanitizeText(p.name)),
+          "[All projects]",
         ];
 
-        const projectChoice = await ctx.ui.select("Select project:", projectChoices);
+        const projectChoice = await ctx.ui.select("Select project:", projectLabels);
         if (!projectChoice) {
           ctx.ui.notify("Cancelled.", "info");
           return;
         }
 
-        cachedProjectId = projectChoice === "__all__" ? undefined : projectChoice;
+        const projectIdx = projectLabels.indexOf(projectChoice);
+        cachedProjectId = projectIdx === projects.length ? undefined : projects[projectIdx].id;
 
         // Phase 2: Pick a milestone
         const milestonesData = await graphqlRequest<{
@@ -964,23 +962,26 @@ export default function linearExtension(pi: ExtensionAPI) {
 
         const allMilestones = milestones.reduce((sum, m) => sum + m.issueCounts.total, 0);
 
-        const milestoneChoices = [
-          ...milestones.map((m) => ({ label: m.label, value: m.id })),
-          { label: `[All milestones] — ${allMilestones} open`, value: "__all__" },
+        const milestoneLabels = [
+          ...milestones.map((m) => m.label),
+          `[All milestones] — ${allMilestones} open`,
         ];
 
-        const milestoneChoice = await ctx.ui.select("Select milestone:", milestoneChoices);
+        const milestoneChoice = await ctx.ui.select("Select milestone:", milestoneLabels);
         if (!milestoneChoice) {
           ctx.ui.notify("Cancelled.", "info");
           return;
         }
 
+        const milestoneIdx = milestoneLabels.indexOf(milestoneChoice);
+        const selectedMilestoneId = milestoneIdx === milestones.length ? "__all__" : milestones[milestoneIdx].id;
+
         // Phase 3: Fetch and display issues
         const issueFilter: Record<string, unknown> = {
           state: { type: { eq: "unstarted" } },
         };
-        if (milestoneChoice !== "__all__") {
-          issueFilter.projectMilestone = { id: { eq: milestoneChoice } };
+        if (selectedMilestoneId !== "__all__") {
+          issueFilter.projectMilestone = { id: { eq: selectedMilestoneId } };
         } else if (cachedProjectId) {
           // When "all milestones" selected but project is scoped, use team filter
           // (issues inherit team from project, but we need to scope somehow)
