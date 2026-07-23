@@ -123,6 +123,7 @@ function formatIssueDetail(issue: LinearIssue): string {
   const lines: string[] = [];
   lines.push(`# ${issue.identifier} — ${sanitizeText(issue.title)}`);
   lines.push("");
+  lines.push(`**ID:** ${issue.id}`);
   lines.push(`**URL:** ${issue.url}`);
   lines.push(`**State:** ${issue.state?.name ?? "Unknown"} (type: ${issue.state?.type ?? "unknown"})`);
   lines.push(`**Priority:** ${issue.priorityLabel} (${issue.priority})`);
