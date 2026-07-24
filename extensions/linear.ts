@@ -22,11 +22,11 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { graphqlRequest } from "./linear-client";
-import { ISSUE_FIELDS } from "./const";
-import { LinearIssue, LinearProject } from "./types";
 import { sanitizeText } from "./helpers/sanitizeText";
 import { formatIssueLine } from "./helpers/formatIssueLine";
+import { fetchProjects } from "./api/fetchProjects";
+import { fetchMilestones } from "./api/fetchMilestones";
+import { fetchIssues } from "./api/fetchIssues";
 import { listIssues } from "./tools/listIssues";
 import { listProjects } from "./tools/listProjects";
 import { listMilestones } from "./tools/listMilestones";
@@ -70,7 +70,7 @@ export default function linearExtension(pi: ExtensionAPI) {
         handler: async (_args, ctx) => {
             // Check API key first
             try {
-                const { getApiKey } = await import("./linear-client");
+                const { getApiKey } = await import("./api/linear-client");
                 getApiKey();
             } catch (err) {
                 ctx.ui.notify(
@@ -91,13 +91,7 @@ export default function linearExtension(pi: ExtensionAPI) {
 
             // Phase 1: Pick a project
             try {
-                const projectsData = await graphqlRequest<{
-                    projects: { nodes: LinearProject[] };
-                }>(`
-                    query { projects(first: 50) { nodes { id name description } } }
-                `);
-
-                const projects = projectsData.projects.nodes;
+                const projects = await fetchProjects();
                 if (!projects.length) {
                     ctx.ui.notify("No projects accessible. Check your Linear workspace permissions.", "error");
                     return;
@@ -118,53 +112,14 @@ export default function linearExtension(pi: ExtensionAPI) {
                 cachedProjectId = projectIdx === projects.length ? undefined : projects[projectIdx].id;
 
                 // Phase 2: Pick a milestone
-                const milestonesData = await graphqlRequest<{
-                    projectMilestones: {
-                        nodes: Array<{
-                            id: string;
-                            name: string;
-                            description?: string;
-                            progress: number;
-                            targetDate?: string;
-                            issues: { nodes: Array<{ id: string; state: { name: string; type: string } }> };
-                        }>;
-                    };
-                }>(`
-                    query($filter: ProjectMilestoneFilter) {
-                        projectMilestones(
-                            filter: $filter
-                            includeArchived: false
-                            first: 50
-                        ) {
-                            nodes {
-                                id name description progress targetDate
-                                issues(filter: { state: { type: { nin: ["completed", "canceled"] } } }) {
-                                    nodes { id state { name type } }
-                                }
-                            }
-                        }
-                    }
-                `, {
-                    filter: cachedProjectId
-                        ? { project: { id: { eq: cachedProjectId } } }
-                        : {},
-                });
-
-                const milestones = milestonesData.projectMilestones.nodes.map((m) => {
-                    const byState: Record<string, number> = {};
-                    for (const issue of m.issues.nodes) {
-                        const name = issue.state.name;
-                        byState[name] = (byState[name] || 0) + 1;
-                    }
-                    const counts = Object.entries(byState)
+                const milestonesRaw = await fetchMilestones(cachedProjectId);
+                const milestones = milestonesRaw.map((m) => {
+                    const counts = Object.entries(m.issueCounts.byState)
                         .map(([state, count]) => `${count} ${state}`)
                         .join(", ");
-
                     return {
-                        id: m.id,
-                        name: m.name,
-                        issueCounts: { total: m.issues.nodes.length, byState },
-                        label: `${sanitizeText(m.name)} — ${m.issues.nodes.length} open${counts ? ` (${counts})` : ""}`,
+                        ...m,
+                        label: `${sanitizeText(m.name)} — ${m.issueCounts.total} open${counts ? ` (${counts})` : ""}`,
                     };
                 });
 
@@ -197,19 +152,7 @@ export default function linearExtension(pi: ExtensionAPI) {
                     issueFilter.projectMilestone = { id: { eq: selectedMilestoneId } };
                 }
 
-                const issuesData = await graphqlRequest<{
-                    issues: { nodes: LinearIssue[] };
-                }>(`
-                    query($filter: IssueFilter, $first: Int) {
-                        issues(filter: $filter, first: $first) {
-                            nodes {
-                                ${ISSUE_FIELDS}
-                            }
-                        }
-                    }
-                `, { filter: issueFilter, first: 50 });
-
-                const issues = issuesData.issues.nodes;
+                const issues = await fetchIssues(issueFilter, 50);
 
                 if (!issues.length) {
                     ctx.ui.notify("No unstarted issues found for the selected milestone.", "info");

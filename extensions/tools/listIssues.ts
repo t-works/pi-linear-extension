@@ -1,9 +1,7 @@
 import { Type } from "typebox";
-import { graphqlRequest } from "../linear-client";
 import { ToolDefinition } from "@earendil-works/pi-coding-agent/dist/core/extensions/types";
-import { ISSUE_FIELDS } from "../const";
-import { LinearIssue } from "../types";
 import { formatIssueLine } from "../helpers/formatIssueLine";
+import { fetchIssues } from "../api/fetchIssues";
 
 const toolDef = {
     name: "linear_list_issues",
@@ -63,19 +61,7 @@ export function listIssues(): ToolDefinition<typeof toolParameters> {
                     queryFilter = filter;
                 }
 
-                const data = await graphqlRequest<{
-                    issues: { nodes: LinearIssue[] };
-                }>(`
-                    query($filter: IssueFilter, $first: Int) {
-                        issues(filter: $filter, first: $first) {
-                            nodes {
-                                ${ISSUE_FIELDS}
-                            }
-                        }
-                    }
-                `, { filter: queryFilter, first }, signal);
-
-                const issues = data.issues.nodes;
+                const issues = await fetchIssues(queryFilter, first, signal);
 
                 if (!issues.length) {
                     return {

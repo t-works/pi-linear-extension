@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { graphqlRequest } from "../linear-client";
+import { graphqlRequest } from "../api/linear-client";
 import { ToolDefinition } from "@earendil-works/pi-coding-agent/dist/core/extensions/types";
 import { ISSUE_FIELDS } from "../const";
 import { LinearIssue } from "../types";

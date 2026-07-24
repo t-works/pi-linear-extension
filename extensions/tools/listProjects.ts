@@ -1,8 +1,7 @@
 import { Type } from "typebox";
-import { graphqlRequest } from "../linear-client";
 import { ToolDefinition } from "@earendil-works/pi-coding-agent/dist/core/extensions/types";
-import { LinearProject } from "../types";
 import { sanitizeText } from "../helpers/sanitizeText";
+import { fetchProjects } from "../api/fetchProjects";
 
 const toolDef = {
     name: "linear_list_projects",
@@ -20,24 +19,16 @@ export function listProjects(): ToolDefinition<typeof toolParameters> {
         parameters: toolParameters,
         async execute(_toolCallId, _params, signal, _onUpdate, _ctx) {
             try {
-                const data = await graphqlRequest<{
-                    projects: { nodes: LinearProject[] };
-                }>(`
-                    query {
-                        projects(first: 50) {
-                            nodes { id name description }
-                        }
-                    }
-                `, undefined, signal);
+                const projects = await fetchProjects(signal);
 
-                if (!data.projects.nodes.length) {
+                if (!projects.length) {
                     return {
                         content: [{ type: "text", text: "No projects found." }],
                         details: { projects: [], count: 0 },
                     };
                 }
 
-                const lines = data.projects.nodes.map(
+                const lines = projects.map(
                     (p, i) => `${i + 1}. ${sanitizeText(p.name)} (id: ${p.id})${p.description ? ` — ${sanitizeText(p.description).slice(0, 100)}` : ""}`,
                 );
 
@@ -45,10 +36,10 @@ export function listProjects(): ToolDefinition<typeof toolParameters> {
                     content: [
                         {
                             type: "text",
-                            text: `Found ${data.projects.nodes.length} projects:\n\n${lines.join("\n")}`,
+                            text: `Found ${projects.length} projects:\n\n${lines.join("\n")}`,
                         },
                     ],
-                    details: { projects: data.projects.nodes, count: data.projects.nodes.length },
+                    details: { projects, count: projects.length },
                 };
             } catch (err) {
                 return {
