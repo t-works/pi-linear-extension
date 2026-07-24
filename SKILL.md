@@ -18,8 +18,18 @@ description: >
 | `linear_search_issues` | Search issues by term |
 | `linear_add_comment` | Post a markdown comment |
 | `linear_update_issue` | Mark issue as Done (PI Agent state) or reassign |
+| `linear_create_issue` | Create a new issue, optionally as a child or in a specific project/milestone |
 
 The `/linear-issues` command opens an interactive project → milestone → issue browser.
+
+## Creating Issues
+
+Use `linear_create_issue` to create new issues from the command line or as part of a workflow:
+- If a project is cached (from `/linear-issues`), it's used as the default project.
+- Issues can be standalone (sibling) or children of existing issues (via `parentId`).
+- Team is auto-detected: from the cached project, or from the viewer's teams if there's only one.
+
+---
 
 ## Default Workflow
 
@@ -31,7 +41,7 @@ The `/linear-issues` command opens an interactive project → milestone → issu
 
 ## Important Notes
 
-- Issues default to `state.type: "unstarted"` — this is the stable filter for Todo/New/Backlog across all teams.
+- Issues default to `state.type` in `["unstarted", "backlog"]` — the stable filter for Todo/New and Backlog across all teams.
 - `linear_update_issue` without an explicit `stateId` automatically transitions to a "PI Agent" completed state.
 - Issue IDs for mutations must be UUIDs (use the `id` field from `linear_list_issues` or `linear_get_issue`).
 - Issue identifiers like `LIN-42` can be used with `linear_get_issue` for lookups.

@@ -44,6 +44,7 @@ export LINEAR_API_KEY=lin_api_your_key_here
 
 ## Available Tools
 
+Tools can be integrated in your workflow to create new issues or manage existing ones. 
 | Tool | Description |
 |------|-------------|
 | `linear_list_projects` | List accessible Linear projects |
@@ -54,6 +55,7 @@ export LINEAR_API_KEY=lin_api_your_key_here
 | `linear_search_issues` | Search issues by term |
 | `linear_add_comment` | Post a markdown comment on an issue |
 | `linear_update_issue` | Update issue state, assignee, or priority |
+| `linear_create_issue` | Create a new issue, optionally as child or in a specific project |
 
 ## Commands
 
