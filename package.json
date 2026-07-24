@@ -1,6 +1,6 @@
 {
-  "name": "pi-linear",
-  "version": "0.1.0",
+  "name": "@t-works/pi-linear",
+  "version": "0.1.1",
   "description": "Linear issue tracker integration for pi coding agent",
   "keywords": ["pi-package", "linear", "issue-tracker"],
   "pi": {
