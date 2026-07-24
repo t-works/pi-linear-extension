@@ -37,7 +37,7 @@ export function listIssues(): ToolDefinition<typeof toolParameters> {
                 if (params.status && params.status.length > 0) {
                     filter.state = { name: { in: params.status } };
                 } else {
-                    filter.state = { type: { eq: "unstarted" } };
+                    filter.state = { type: { in: ["unstarted", "backlog"] } };
                 }
 
                 if (params.milestoneId) filter.projectMilestone = { id: { eq: params.milestoneId } };

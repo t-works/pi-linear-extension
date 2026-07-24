@@ -13,20 +13,22 @@
  *   linear_search_issues    — Search issues by text
  *   linear_add_comment      — Post a markdown comment
  *   linear_update_issue     — Update issue (primary use: → PI Agent completed state)
+ *   linear_create_issue     — Create a new issue
  *
  * Command:
  *   /linear-issues          — Interactive project → milestone → issue browser
  *
- * Default filter: state.type "unstarted" (the stable category for Todo/New/Backlog).
+ * Default filter: state.type in ["unstarted", "backlog"] (the stable categories for Todo/New and Backlog).
  * Completed/canceled issues are excluded from the work queue by default.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { sanitizeText } from "./helpers/sanitizeText";
-import { formatIssueLine } from "./helpers/formatIssueLine";
 import { fetchProjects } from "./api/fetchProjects";
 import { fetchMilestones } from "./api/fetchMilestones";
 import { fetchIssues } from "./api/fetchIssues";
+import { graphqlRequest } from "./api/linear-client";
+import { ISSUE_FIELDS } from "./const";
 import { listIssues } from "./tools/listIssues";
 import { listProjects } from "./tools/listProjects";
 import { listMilestones } from "./tools/listMilestones";
@@ -35,6 +37,9 @@ import { getMyIssues } from "./tools/getMyIssues";
 import { searchIssues } from "./tools/searchIssues";
 import { addComment } from "./tools/addComment";
 import { updateIssue, ensurePiAgentStates, clearPiAgentStateCache } from "./tools/updateIssue";
+import { createIssue } from "./tools/createIssue";
+
+import {formatIssueDetail} from "./helpers/formatIssueDetail";
 
 export default function linearExtension(pi: ExtensionAPI) {
     let cachedProjectId: string | undefined;
@@ -62,6 +67,7 @@ export default function linearExtension(pi: ExtensionAPI) {
     pi.registerTool(searchIssues());
     pi.registerTool(addComment());
     pi.registerTool(updateIssue());
+    pi.registerTool(createIssue(() => cachedProjectId));
 
     // ── Command: /linear-issues ──────────────────────────────────────────────
 
@@ -123,50 +129,110 @@ export default function linearExtension(pi: ExtensionAPI) {
                     };
                 });
 
+                let selectedMilestoneId: string | undefined;
+
                 if (!milestones.length) {
-                    ctx.ui.notify("No milestones found for the selected project.", "info");
-                    return;
+                    // No milestones — load all unstarted issues for this project directly
+                    if (!cachedProjectId) {
+                        ctx.ui.notify("No milestones found across all projects.", "info");
+                        return;
+                    }
+                    ctx.ui.notify("No milestones found. Loading all unstarted issues for this project…", "info");
+                } else {
+                    const allMilestones = milestones.reduce((sum, m) => sum + m.issueCounts.total, 0);
+
+                    const milestoneLabels = [
+                        ...milestones.map((m) => m.label),
+                        `[All milestones] — ${allMilestones} open`,
+                    ];
+
+                    const milestoneChoice = await ctx.ui.select("Select milestone:", milestoneLabels);
+                    if (!milestoneChoice) {
+                        ctx.ui.notify("Cancelled.", "info");
+                        return;
+                    }
+
+                    const milestoneIdx = milestoneLabels.indexOf(milestoneChoice);
+                    selectedMilestoneId = milestoneIdx === milestones.length ? "__all__" : milestones[milestoneIdx].id;
                 }
 
-                const allMilestones = milestones.reduce((sum, m) => sum + m.issueCounts.total, 0);
-
-                const milestoneLabels = [
-                    ...milestones.map((m) => m.label),
-                    `[All milestones] — ${allMilestones} open`,
-                ];
-
-                const milestoneChoice = await ctx.ui.select("Select milestone:", milestoneLabels);
-                if (!milestoneChoice) {
-                    ctx.ui.notify("Cancelled.", "info");
-                    return;
-                }
-
-                const milestoneIdx = milestoneLabels.indexOf(milestoneChoice);
-                const selectedMilestoneId = milestoneIdx === milestones.length ? "__all__" : milestones[milestoneIdx].id;
-
-                // Phase 3: Fetch and display issues
+                // Phase 3: Pick an issue and load details
                 const issueFilter: Record<string, unknown> = {
-                    state: { type: { eq: "unstarted" } },
+                    state: { type: { in: ["unstarted", "backlog"] } },
                 };
-                if (selectedMilestoneId !== "__all__") {
+                if (selectedMilestoneId && selectedMilestoneId !== "__all__") {
                     issueFilter.projectMilestone = { id: { eq: selectedMilestoneId } };
+                } else if (!selectedMilestoneId && cachedProjectId) {
+                    // No milestone selected, filter by project instead
+                    issueFilter.project = { id: { eq: cachedProjectId } };
                 }
 
                 const issues = await fetchIssues(issueFilter, 50);
 
                 if (!issues.length) {
-                    ctx.ui.notify("No unstarted issues found for the selected milestone.", "info");
+                    if (!milestones.length && cachedProjectId) {
+                        ctx.ui.notify("No unstarted issues found for this project.", "info");
+                    } else {
+                        ctx.ui.notify("No unstarted issues found for the selected milestone.", "info");
+                    }
                     return;
                 }
 
-                const issueLines = issues.map((issue, i) => formatIssueLine(issue, i));
-                const message = `Found ${issues.length} unstarted issues:\n\n${issueLines.join("\n")}`;
+                const issueLabels = issues.map((issue) => {
+                    const title = sanitizeText(issue.title);
+                    const state = issue.state?.name ?? "Unknown";
+                    const priority = issue.priorityLabel;
+                    const assignee = issue.assignee?.name;
+                    const parts = [`${issue.identifier} — ${title} [${state}]`];
+                    if (priority && priority !== "No priority") parts.push(`(${priority})`);
+                    if (assignee) parts.push(`(${assignee})`);
+                    return parts.join(" ");
+                });
 
-                ctx.ui.notify(`Found ${issues.length} unstarted issues. Loading into chat...`, "info");
+                const issueChoice = await ctx.ui.select(
+                    `Select issue (${issues.length} unstarted):`,
+                    issueLabels,
+                );
+                if (!issueChoice) {
+                    ctx.ui.notify("Cancelled.", "info");
+                    return;
+                }
 
-                pi.sendUserMessage(
-                    `${message}\n\nYou can now work on these issues. Use linear_get_issue to read full details, then linear_update_issue to mark as Done when finished.`,
-                    { deliverAs: "followUp" },
+                const issueIdx = issueLabels.indexOf(issueChoice);
+                const selectedIssue = issues[issueIdx];
+
+                ctx.ui.notify(`Loading ${selectedIssue.identifier}…`, "info");
+
+                // Fetch full issue details (with children and comments)
+                const detailData = await graphqlRequest<{
+                    issue: import("./types").LinearIssue;
+                }>(`
+                    query($id: String!) {
+                        issue(id: $id) {
+                            ${ISSUE_FIELDS}
+                            children { nodes { id identifier title state { name type } } }
+                            comments(first: 20) {
+                                nodes { id body user { name } createdAt }
+                            }
+                        }
+                    }
+                `, { id: selectedIssue.id });
+
+                const fullIssue = detailData.issue;
+                if (!fullIssue) {
+                    ctx.ui.notify("Failed to load issue details.", "error");
+                    return;
+                }
+
+                const detailText = formatIssueDetail(fullIssue);
+
+                pi.sendMessage(
+                    {
+                        customType: "linear-issue-detail",
+                        content: detailText,
+                        display: true,
+                    },
+                    { triggerTurn: false },
                 );
             } catch (err) {
                 ctx.ui.notify(
