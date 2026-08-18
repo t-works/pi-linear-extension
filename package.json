@@ -1,8 +1,12 @@
 {
   "name": "@t-works/pi-linear",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Linear issue tracker integration for pi coding agent",
-  "keywords": ["pi-package", "linear", "issue-tracker"],
+  "keywords": ["pi-package", "pi-extension", "linear", "issue-tracker"],
+  "repository": {
+    "type": "git",
+	"url": "git+https://github.com/t-works/pi-linear-extension.git"
+  },
   "pi": {
     "extensions": ["./extensions/linear.ts"],
     "skills": ["./SKILL.md", "./skills"]
